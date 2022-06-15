@@ -1,0 +1,1 @@
+https://www.linkedin.com/learning/azure-functions-for-developers
