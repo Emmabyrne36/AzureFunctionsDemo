@@ -1,9 +1,0 @@
-{
-  "profiles": {
-    "PhotosResizer": {
-      "commandName": "Project",
-      "commandLineArgs": "--port 7030",
-      "launchBrowser": false
-    }
-  }
-}
