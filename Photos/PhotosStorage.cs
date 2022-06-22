@@ -15,10 +15,18 @@ namespace Photos
     public static class PhotosStorage
     {
         private const string BlobContainerName = "photos";
+        private const string CosmosDBName = "photos";
+        private const string CollectionName = "metadata";
 
         [FunctionName("PhotosStorage")]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req,
+            [Blob(BlobContainerName, FileAccess.ReadWrite, Connection = Literals.StorageConnectionString)] BlobClient blobClient,
+            [CosmosDB(
+                CosmosDBName, 
+                CollectionName, 
+                ConnectionStringSetting = Literals.CosmosDBConnectionString, 
+                CreateIfNotExists = true)] IAsyncCollector<dynamic> items,
             ILogger logger)
         {
             var body = await new StreamReader(req.Body).ReadToEndAsync();
@@ -27,19 +35,39 @@ namespace Photos
             var newId = Guid.NewGuid();
             var blobName = $"{newId}.jpg";
 
-            var blob = GetBlobClient(blobName);
-            var photoBytes = Convert.FromBase64String(request.Photo);
+            await UploadFile(request, blobName, blobClient);
+            await UploadMetadata(items, request, newId);
 
-            using (var stream = new MemoryStream(photoBytes))
-            {
-                await blob.UploadAsync(stream);
-            }
-
-            logger?.LogInformation($"Successfully uploaded {blobName} file");
+            logger?.LogInformation($"Successfully uploaded {blobName} file and its metadata");
 
             return new OkObjectResult(newId);
         }
 
+        private static async Task UploadFile(PhotoUploadModel request, string blobName, BlobClient blobClient)
+        {
+            // var blobClient = GetBlobClient(blobName);
+            var photoBytes = Convert.FromBase64String(request.Photo);
+
+            using (var stream = new MemoryStream(photoBytes))
+            {
+                await blobClient.UploadAsync(stream);
+            }
+        }
+
+        private static async Task UploadMetadata(IAsyncCollector<dynamic> items, PhotoUploadModel request, Guid newId)
+        {
+            var item = new
+            {
+                id = newId,
+                name = request.Name,
+                description = request.Description,
+                tags = request.Tags
+            };
+
+            await items.AddAsync(item);
+        }
+
+        // TODO: See if this is needed
         private static BlobClient GetBlobClient(string blobName)
         {
             var connectionString = Environment.GetEnvironmentVariable(Literals.StorageConnectionString);
