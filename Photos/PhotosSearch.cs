@@ -1,35 +1,54 @@
-using System;
-using System.IO;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Documents.Linq;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
+using Photos.Models;
 
 namespace Photos
 {
     public static class PhotosSearch
     {
+        private const string CosmosDBName = "photos";
+        private const string CollectionName = "metadata";
+        private const string SearchTerm = "sarchTerm";
+
         [FunctionName("PhotosSearch")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
-            ILogger log)
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequest req,
+            [CosmosDB(CosmosDBName, CollectionName, ConnectionStringSetting = Literals.CosmosDBConnectionString)] DocumentClient client,
+            ILogger logger)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
+            logger?.LogInformation("Searching...");
 
-            string name = req.Query["name"];
+            var searchTerm = req.Query[SearchTerm];
+            if (string.IsNullOrWhiteSpace(searchTerm))
+            {
+                return new NotFoundResult();
+            }
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
+            var collectionUri = UriFactory.CreateDocumentCollectionUri(CosmosDBName, CollectionName);
 
-            string responseMessage = string.IsNullOrEmpty(name)
-                ? "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                : $"Hello, {name}. This HTTP triggered function executed successfully.";
+            var query = client.CreateDocumentQuery<PhotoUploadModel>(collectionUri, new FeedOptions() { EnableCrossPartitionQuery = true })
+             .Where(p => p.Description.Contains(searchTerm))
+             .AsDocumentQuery();
 
-            return new OkObjectResult(responseMessage);
+
+            var results = new List<dynamic>();
+            while(query.HasMoreResults)
+            {
+                foreach(var result in await query.ExecuteNextAsync())
+                {
+                    results.Add(result);
+                }
+            }
+
+            return new OkObjectResult(results);
         }
     }
 }
