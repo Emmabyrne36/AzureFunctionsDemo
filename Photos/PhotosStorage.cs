@@ -43,15 +43,16 @@ namespace Photos
             var newId = Guid.NewGuid();
             var blobName = $"{newId}.jpg";
 
-            await UploadFile(request, blobName, blobClient);
-            await UploadMetadata(items, request, newId);
+            var analysisResult = await UploadFile(request, blobName, blobClient);
+
+            await UploadMetadata(items, request, newId, analysisResult);
 
             logger?.LogInformation($"Successfully uploaded {blobName} file and its metadata");
 
             return new OkObjectResult(newId);
         }
 
-        private static async Task UploadFile(PhotoUploadModel request, string blobName, BlobClient blobClient)
+        private async Task<dynamic> UploadFile(PhotoUploadModel request, string blobName, BlobClient blobClient)
         {
             // var blobClient = GetBlobClient(blobName);
             var photoBytes = Convert.FromBase64String(request.Photo);
@@ -60,16 +61,19 @@ namespace Photos
             {
                 await blobClient.UploadAsync(stream);
             }
+
+            return await _analyserService.AnalyseAsync(photoBytes);
         }
 
-        private static async Task UploadMetadata(IAsyncCollector<dynamic> items, PhotoUploadModel request, Guid newId)
+        private static async Task UploadMetadata(IAsyncCollector<dynamic> items, PhotoUploadModel request, Guid newId, dynamic analysisResult)
         {
             var item = new
             {
-                id = newId,
-                name = request.Name,
-                description = request.Description,
-                tags = request.Tags
+                Id = newId,
+                Name = request.Name,
+                Description = request.Description,
+                Tags = request.Tags,
+                Analysis = analysisResult
             };
 
             await items.AddAsync(item);
