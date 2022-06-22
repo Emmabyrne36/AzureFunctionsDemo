@@ -8,18 +8,26 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Photos.AnalyserService.Abstractions;
 using Photos.Models;
 
 namespace Photos
 {
-    public static class PhotosStorage
+    public class PhotosStorage
     {
         private const string BlobContainerName = "photos";
         private const string CosmosDBName = "photos";
         private const string CollectionName = "metadata";
+        
+        private readonly IAnalyserService _analyserService;
+
+        public PhotosStorage(IAnalyserService analyserService)
+        {
+            _analyserService = analyserService ?? throw new ArgumentNullException(nameof(analyserService));
+        }
 
         [FunctionName("PhotosStorage")]
-        public static async Task<IActionResult> Run(
+        public async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req,
             [Blob(BlobContainerName, FileAccess.ReadWrite, Connection = Literals.StorageConnectionString)] BlobClient blobClient,
             [CosmosDB(
