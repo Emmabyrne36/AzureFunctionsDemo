@@ -2,33 +2,23 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Photos.AnalyserService.Abstractions;
+using Photos.Enums;
 using Photos.Models;
 
-namespace Photos
+namespace Photos.Functions
 {
     public class PhotosStorage
     {
         private const string BlobContainerName = "photos";
         private const string CosmosDBName = "photos";
         private const string CollectionName = "metadata";
-        
-        private readonly IAnalyserService _analyserService;
 
-        public PhotosStorage(IAnalyserService analyserService)
-        {
-            _analyserService = analyserService ?? throw new ArgumentNullException(nameof(analyserService));
-        }
-
-        [FunctionName("PhotosStorage")]
-        public async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req,
+        [FunctionName(FunctionNames.PhotosStorage)]
+        public async Task<byte[]> Run(
+            [ActivityTrigger] PhotoUploadModel request,
             [Blob(BlobContainerName, FileAccess.ReadWrite, Connection = Literals.StorageConnectionString)] BlobClient blobClient,
             [CosmosDB(
                 CosmosDBName, 
@@ -37,22 +27,20 @@ namespace Photos
                 CreateIfNotExists = true)] IAsyncCollector<dynamic> items,
             ILogger logger)
         {
-            var body = await new StreamReader(req.Body).ReadToEndAsync();
-            var request = JsonConvert.DeserializeObject<PhotoUploadModel>(body);
 
             var newId = Guid.NewGuid();
             var blobName = $"{newId}.jpg";
 
-            var analysisResult = await UploadFile(request, blobName, blobClient);
+            var photoBytes = await UploadFile(request, blobName, blobClient);
 
-            await UploadMetadata(items, request, newId, analysisResult);
+            await UploadMetadata(items, request, newId);
 
             logger?.LogInformation($"Successfully uploaded {blobName} file and its metadata");
 
-            return new OkObjectResult(newId);
+            return photoBytes;
         }
 
-        private async Task<dynamic> UploadFile(PhotoUploadModel request, string blobName, BlobClient blobClient)
+        private async Task<byte[]> UploadFile(PhotoUploadModel request, string blobName, BlobClient blobClient)
         {
             // var blobClient = GetBlobClient(blobName);
             var photoBytes = Convert.FromBase64String(request.Photo);
@@ -62,10 +50,10 @@ namespace Photos
                 await blobClient.UploadAsync(stream);
             }
 
-            return await _analyserService.AnalyseAsync(photoBytes);
+            return photoBytes;
         }
 
-        private static async Task UploadMetadata(IAsyncCollector<dynamic> items, PhotoUploadModel request, Guid newId, dynamic analysisResult)
+        private static async Task UploadMetadata(IAsyncCollector<dynamic> items, PhotoUploadModel request, Guid newId)
         {
             var item = new
             {
@@ -73,7 +61,6 @@ namespace Photos
                 Name = request.Name,
                 Description = request.Description,
                 Tags = request.Tags,
-                Analysis = analysisResult
             };
 
             await items.AddAsync(item);

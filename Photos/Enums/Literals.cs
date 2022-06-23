@@ -1,4 +1,4 @@
-﻿namespace Photos
+﻿namespace Photos.Enums
 {
     public static class Literals
     {

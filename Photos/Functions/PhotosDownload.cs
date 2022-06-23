@@ -6,8 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using Photos.Enums;
 
-namespace Photos
+namespace Photos.Functions
 {
     public static class PhotosDownload
     {
@@ -20,7 +21,7 @@ namespace Photos
         private const string Medium = "md";
         private const string Original = "original";
 
-        [FunctionName("PhotosDownload")]
+        [FunctionName(FunctionNames.PhotosDownload)]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = PhotoRoute)] HttpRequest req,
             [Blob(BlobPathSmall, FileAccess.Read, Connection = Literals.StorageConnectionString)] Stream imageSmall,

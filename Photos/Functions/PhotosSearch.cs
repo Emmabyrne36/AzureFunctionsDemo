@@ -8,9 +8,10 @@ using Microsoft.Azure.Documents.Linq;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
+using Photos.Enums;
 using Photos.Models;
 
-namespace Photos
+namespace Photos.Functions
 {
     public static class PhotosSearch
     {
@@ -18,7 +19,7 @@ namespace Photos
         private const string CollectionName = "metadata";
         private const string SearchTerm = "sarchTerm";
 
-        [FunctionName("PhotosSearch")]
+        [FunctionName(FunctionNames.PhotosSearch)]
         public static async Task<IActionResult> Run(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequest req,
             [CosmosDB(CosmosDBName, CollectionName, ConnectionStringSetting = Literals.CosmosDBConnectionString)] DocumentClient client,
